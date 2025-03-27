@@ -1,3 +1,3 @@
 # Codecrafters - Build Your Own Redis 
 
-### https://app.codecrafters.io/courses/redis/introduction
+### https://app.codecrafters.io/courses/redis/overview
