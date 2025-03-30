@@ -1,6 +1,9 @@
 package data
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 type DataStore interface {
 	Get(key any) (any, bool)
@@ -21,4 +24,24 @@ func (rs *RedisStore) Get(key any) (any, bool) {
 
 func (rs *RedisStore) Set(key, value any) {
 	rs.cmap.Store(key, value)
+}
+
+type RedisValue struct {
+	value   string
+	expires time.Time
+}
+
+func NewRedisValue(value string, expires time.Time) *RedisValue {
+	return &RedisValue{
+		value,
+		expires,
+	}
+}
+
+func (rv RedisValue) IsExpired() bool {
+	return !rv.expires.IsZero() && time.Now().After(rv.expires)
+}
+
+func (rv RedisValue) Value() string {
+	return rv.value
 }

@@ -5,13 +5,14 @@ import (
 	"errors"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/JanitSri/codecrafters-build-your-own-redis/data"
 )
 
-var InvalidNumberOfArguments = errors.New("invalid number of arguments")
-var InvalidArgument = errors.New("invalid argument")
-var InvalidCharacterError = errors.New("invalid error type")
+var ErrInvalidNumberOfArguments = errors.New("invalid number of arguments")
+var ErrInvalidArgument = errors.New("invalid argument")
+var ErrInvalidCharacterError = errors.New("invalid error type")
 
 func writeBulkString(s string) []byte {
 	l := strconv.Itoa(len(s))
@@ -77,7 +78,7 @@ func (ec *EchoCommand) Execute(ds data.DataStore) []byte {
 	log.Println("echoing...")
 
 	if len(ec.args) != 1 {
-		log.Fatal(InvalidNumberOfArguments)
+		log.Fatal(ErrInvalidNumberOfArguments)
 	}
 
 	return writeBulkString(ec.args[0])
@@ -100,10 +101,11 @@ func (sc *SetCommand) Execute(ds data.DataStore) []byte {
 	log.Println("setting...")
 
 	if len(sc.args) != 2 {
-		log.Fatal(InvalidNumberOfArguments)
+		log.Fatal(ErrInvalidNumberOfArguments)
 	}
 
-	ds.Set(sc.args[0], sc.args[1])
+	v := data.NewRedisValue(sc.args[1], time.Time{})
+	ds.Set(sc.args[0], v)
 
 	var b bytes.Buffer
 	b.WriteString(OK)
@@ -128,7 +130,7 @@ func (gc *GetCommand) Execute(ds data.DataStore) []byte {
 	log.Println("getting...")
 
 	if len(gc.args) != 1 {
-		log.Fatal(InvalidNumberOfArguments)
+		log.Fatal(ErrInvalidNumberOfArguments)
 	}
 
 	v, ok := ds.Get(gc.args[0])
@@ -138,6 +140,6 @@ func (gc *GetCommand) Execute(ds data.DataStore) []byte {
 		return b.Bytes()
 	}
 
-	res := v.(string)
-	return writeBulkString(res)
+	res := v.(*data.RedisValue)
+	return writeBulkString(res.Value())
 }

@@ -49,12 +49,12 @@ func (rs *RedisScanner) parseCmd(s string) Command {
 
 func (rs *RedisScanner) handleArrays(s string) Command {
 	if len(s) < 2 {
-		log.Fatalln(InvalidCharacterError)
+		log.Fatalln(ErrInvalidCharacterError)
 	}
 
 	n, err := strconv.Atoi(string(s[1:]))
 	if err != nil {
-		log.Fatalln(InvalidCharacterError)
+		log.Fatalln(ErrInvalidCharacterError)
 	}
 
 	for i := n; i > 0 && rs.scanner.Scan(); i-- {
@@ -67,12 +67,12 @@ func (rs *RedisScanner) handleArrays(s string) Command {
 
 func (rs *RedisScanner) handleBulkString(s string) Command {
 	if len(s) < 2 {
-		log.Fatalln(InvalidCharacterError)
+		log.Fatalln(ErrInvalidCharacterError)
 	}
 
 	n, err := strconv.Atoi(string(s[1:]))
 	if err != nil {
-		log.Fatalln(InvalidCharacterError)
+		log.Fatalln(ErrInvalidCharacterError)
 	}
 	if n == 0 {
 		log.Println("empty string")
@@ -112,7 +112,7 @@ func (rs *RedisScanner) skipLen() {
 		i++
 	}
 	if i != 2 {
-		log.Fatalln(InvalidNumberOfArguments)
+		log.Fatalln(ErrInvalidNumberOfArguments)
 	}
 }
 
