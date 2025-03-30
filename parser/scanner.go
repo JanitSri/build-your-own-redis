@@ -1,4 +1,4 @@
-package redis
+package parser
 
 import (
 	"bufio"
@@ -13,14 +13,14 @@ type RedisScanner struct {
 	cmdCh   chan<- Command
 }
 
-func newRedisScanner(rw io.ReadWriter, cmdCh chan<- Command) *RedisScanner {
+func NewRedisScanner(rw io.ReadWriter, cmdCh chan<- Command) *RedisScanner {
 	return &RedisScanner{
 		scanner: *bufio.NewScanner(rw),
 		cmdCh:   cmdCh,
 	}
 }
 
-func (rs *RedisScanner) scan() {
+func (rs *RedisScanner) Scan() {
 	for rs.scanner.Scan() {
 		t := rs.scanner.Text()
 		cmd := rs.parseCmd(t)
@@ -112,7 +112,7 @@ func (rs *RedisScanner) skipLen() {
 		i++
 	}
 	if i != 2 {
-		log.Fatalln("echo command", InvalidNumberOfArguments)
+		log.Fatalln(InvalidNumberOfArguments)
 	}
 }
 

@@ -1,14 +1,17 @@
-package redis
+package parser
 
 import (
 	"bytes"
 	"errors"
 	"log"
 	"strconv"
+
+	"github.com/JanitSri/codecrafters-build-your-own-redis/data"
 )
 
 var InvalidNumberOfArguments = errors.New("invalid number of arguments")
 var InvalidArgument = errors.New("invalid argument")
+var InvalidCharacterError = errors.New("invalid error type")
 
 func writeBulkString(s string) []byte {
 	l := strconv.Itoa(len(s))
@@ -39,7 +42,7 @@ type BaseCommand struct {
 }
 
 type Command interface {
-	Execute(*RedisServer) []byte
+	Execute(data.DataStore) []byte
 }
 
 type PingCommand struct {
@@ -49,7 +52,7 @@ func NewPingCommand() *PingCommand {
 	return &PingCommand{}
 }
 
-func (pc *PingCommand) Execute(svr *RedisServer) []byte {
+func (pc *PingCommand) Execute(ds data.DataStore) []byte {
 	log.Println("ponging...")
 
 	var b bytes.Buffer
@@ -70,7 +73,7 @@ func NewEchoCommand(args []string) *EchoCommand {
 	}
 }
 
-func (ec *EchoCommand) Execute(svr *RedisServer) []byte {
+func (ec *EchoCommand) Execute(ds data.DataStore) []byte {
 	log.Println("echoing...")
 
 	if len(ec.args) != 1 {
@@ -93,14 +96,14 @@ func NewSetCommand(args []string, flags []*Flag) *SetCommand {
 	}
 }
 
-func (sc *SetCommand) Execute(svr *RedisServer) []byte {
+func (sc *SetCommand) Execute(ds data.DataStore) []byte {
 	log.Println("setting...")
 
 	if len(sc.args) != 2 {
 		log.Fatal(InvalidNumberOfArguments)
 	}
 
-	svr.cmap.Store(sc.args[0], sc.args[1])
+	ds.Set(sc.args[0], sc.args[1])
 
 	var b bytes.Buffer
 	b.WriteString(OK)
@@ -121,14 +124,14 @@ func NewGetCommand(args []string, flags []*Flag) *GetCommand {
 	}
 }
 
-func (gc *GetCommand) Execute(svr *RedisServer) []byte {
+func (gc *GetCommand) Execute(ds data.DataStore) []byte {
 	log.Println("getting...")
 
 	if len(gc.args) != 1 {
 		log.Fatal(InvalidNumberOfArguments)
 	}
 
-	v, ok := svr.cmap.Load(gc.args[0])
+	v, ok := ds.Get(gc.args[0])
 	if !ok {
 		var b bytes.Buffer
 		b.WriteString(NULL_BULK_STRING)

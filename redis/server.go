@@ -9,9 +9,10 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-)
 
-var InvalidCharacterError = errors.New("invalid error type")
+	"github.com/JanitSri/codecrafters-build-your-own-redis/data"
+	"github.com/JanitSri/codecrafters-build-your-own-redis/parser"
+)
 
 type ServerConfig struct {
 	network string
@@ -29,12 +30,13 @@ func NewServerConfig(network, host, port string) *ServerConfig {
 
 type RedisServer struct {
 	ServerConfig
-	cmap sync.Map
+	ds data.DataStore
 }
 
 func NewRedisServer(config ServerConfig) *RedisServer {
 	return &RedisServer{
 		ServerConfig: config,
+		ds:           data.NewRedisStore(),
 	}
 }
 
@@ -79,24 +81,24 @@ func (rs *RedisServer) Run() {
 func (rs *RedisServer) handleConnections(conn net.Conn) {
 	defer conn.Close()
 	log.Println("handling connection from", conn.RemoteAddr().String())
-	c := make(chan Command)
-	sc := newRedisScanner(conn, c)
+	c := make(chan parser.Command, 10)
+	sc := parser.NewRedisScanner(conn, c)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	go func(sc *RedisScanner) {
+	go func() {
 		defer wg.Done()
-		sc.scan()
-	}(sc)
+		sc.Scan()
+	}()
 
-	go func(c <-chan Command) {
+	go func() {
 		defer wg.Done()
 		for cmd := range c {
-			b := cmd.Execute(rs)
+			b := cmd.Execute(rs.ds)
 			conn.Write(b)
 		}
-	}(c)
+	}()
 
 	wg.Wait()
 	log.Println("Closing connection for", conn.RemoteAddr().String())
