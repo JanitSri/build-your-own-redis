@@ -4,6 +4,9 @@ import "errors"
 
 var InvalidRespDataTypeError = errors.New("invalid redis resp type")
 var InvalidRedisCommandError = errors.New("invalid redis command")
+var InvalidSetCommandFlag = func(flag string) error {
+	return errors.New("invalid flag for set command: " + flag)
+}
 
 const (
 	// RESP Data Types
@@ -27,6 +30,9 @@ const (
 	ECHO = "ECHO"
 	GET  = "GET"
 	SET  = "SET"
+
+	// SET COMMAND FLAGS
+	PX = "PX"
 
 	REDIS_TERMINATOR = "\r\n"
 	PONG             = SIMPLE_STRING + "PONG" + REDIS_TERMINATOR

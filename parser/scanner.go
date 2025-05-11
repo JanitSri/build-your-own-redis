@@ -23,7 +23,7 @@ func NewRedisScanner(rw io.ReadWriter, cmdCh chan<- Command) *RedisScanner {
 func (rs *RedisScanner) Scan() {
 	for rs.scanner.Scan() {
 		t := rs.scanner.Text()
-		cmd := rs.parseCmd(t)
+		cmd := rs.parseCmd(t, 0)
 		if cmd != nil {
 			rs.cmdCh <- cmd
 		}
@@ -31,7 +31,7 @@ func (rs *RedisScanner) Scan() {
 	close(rs.cmdCh)
 }
 
-func (rs *RedisScanner) parseCmd(s string) Command {
+func (rs *RedisScanner) parseCmd(s string, np int) Command {
 	rt := string(s[0])
 
 	var cmd Command
@@ -39,9 +39,9 @@ func (rs *RedisScanner) parseCmd(s string) Command {
 	case ARRAY:
 		cmd = rs.handleArrays(s)
 	case BULK_STRING:
-		cmd = rs.handleBulkString(s)
+		cmd = rs.handleBulkString(s, np)
 	default:
-		cmd = rs.handleCommand(s)
+		cmd = rs.handleCommand(s, np)
 	}
 
 	return cmd
@@ -57,15 +57,15 @@ func (rs *RedisScanner) handleArrays(s string) Command {
 		log.Fatalln(ErrInvalidCharacterError)
 	}
 
-	for i := n; i > 0 && rs.scanner.Scan(); i-- {
-		t := rs.scanner.Text()
-		return rs.parseCmd(t)
+	if !rs.scanner.Scan() {
+		log.Fatalln(InvalidRedisCommandError)
 	}
 
-	return nil
+	t := rs.scanner.Text()
+	return rs.parseCmd(t, n)
 }
 
-func (rs *RedisScanner) handleBulkString(s string) Command {
+func (rs *RedisScanner) handleBulkString(s string, np int) Command {
 	if len(s) < 2 {
 		log.Fatalln(ErrInvalidCharacterError)
 	}
@@ -84,10 +84,10 @@ func (rs *RedisScanner) handleBulkString(s string) Command {
 	}
 
 	t := rs.scanner.Text()
-	return rs.parseCmd(t)
+	return rs.parseCmd(t, np-1)
 }
 
-func (rs *RedisScanner) handleCommand(cmdString string) Command {
+func (rs *RedisScanner) handleCommand(cmdString string, np int) Command {
 	var cmd Command
 
 	switch strings.ToUpper(cmdString) {
@@ -96,7 +96,7 @@ func (rs *RedisScanner) handleCommand(cmdString string) Command {
 	case ECHO:
 		cmd = rs.parseEchoCmd()
 	case SET:
-		cmd = rs.parseSetCmd()
+		cmd = rs.parseSetCmd(np)
 	case GET:
 		cmd = rs.parseGetCmd()
 	default:
@@ -127,15 +127,30 @@ func (rs *RedisScanner) parseEchoCmd() *EchoCommand {
 	return NewEchoCommand([]string{s})
 }
 
-func (rs *RedisScanner) parseSetCmd() *SetCommand {
+func (rs *RedisScanner) parseSetCmd(np int) *SetCommand {
 	rs.skipLen()
 	k := rs.scanner.Text()
+	np -= 1
 
 	rs.skipLen()
 	v := rs.scanner.Text()
+	np -= 1
 
 	args := []string{k, v}
 	flags := []*Flag{}
+
+	for i := np; i > 0; i-- {
+		rs.skipLen()
+		f := rs.scanner.Text()
+		switch strings.ToUpper(f) {
+		case PX:
+			rs.skipLen()
+			flags = append(flags, NewFlag(f, rs.scanner.Text()))
+			i -= 1
+		default:
+			log.Fatalln(InvalidSetCommandFlag(f))
+		}
+	}
 
 	return NewSetCommand(args, flags)
 }

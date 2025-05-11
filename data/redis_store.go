@@ -27,19 +27,23 @@ func (rs *RedisStore) Set(key, value any) {
 }
 
 type RedisValue struct {
-	value   string
-	expires time.Time
+	value  string
+	expiry time.Time
 }
 
-func NewRedisValue(value string, expires time.Time) *RedisValue {
+func NewRedisValue(value string, expiry time.Time) *RedisValue {
 	return &RedisValue{
 		value,
-		expires,
+		expiry,
 	}
 }
 
 func (rv RedisValue) IsExpired() bool {
-	return !rv.expires.IsZero() && time.Now().After(rv.expires)
+	return !rv.expiry.IsZero() && time.Now().After(rv.expiry)
+}
+
+func (rv *RedisValue) SetExpiry(t time.Time) {
+	rv.expiry = t
 }
 
 func (rv RedisValue) Value() string {

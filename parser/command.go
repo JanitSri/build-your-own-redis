@@ -5,9 +5,10 @@ import (
 	"errors"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/JanitSri/codecrafters-build-your-own-redis/data"
+	"github.com/codecrafters-io/redis-starter-go/app/data"
 )
 
 var ErrInvalidNumberOfArguments = errors.New("invalid number of arguments")
@@ -37,13 +38,13 @@ func NewFlag(name, value string) *Flag {
 	}
 }
 
+type Command interface {
+	Execute(data.DataStore) []byte
+}
+
 type BaseCommand struct {
 	args  []string
 	flags []*Flag
-}
-
-type Command interface {
-	Execute(data.DataStore) []byte
 }
 
 type PingCommand struct {
@@ -105,6 +106,16 @@ func (sc *SetCommand) Execute(ds data.DataStore) []byte {
 	}
 
 	v := data.NewRedisValue(sc.args[1], time.Time{})
+	for _, f := range sc.flags {
+		switch strings.ToUpper(f.name) {
+		case PX:
+			ms, _ := strconv.Atoi(f.value)
+			v.SetExpiry(time.Now().Add(time.Duration(ms) * time.Millisecond))
+		default:
+			log.Fatalln(InvalidSetCommandFlag(f.name))
+		}
+	}
+
 	ds.Set(sc.args[0], v)
 
 	var b bytes.Buffer
@@ -134,12 +145,17 @@ func (gc *GetCommand) Execute(ds data.DataStore) []byte {
 	}
 
 	v, ok := ds.Get(gc.args[0])
+	var b bytes.Buffer
 	if !ok {
-		var b bytes.Buffer
 		b.WriteString(NULL_BULK_STRING)
 		return b.Bytes()
 	}
 
 	res := v.(*data.RedisValue)
+	if res.IsExpired() {
+		b.WriteString(NULL_BULK_STRING)
+		return b.Bytes()
+	}
+
 	return writeBulkString(res.Value())
 }

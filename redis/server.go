@@ -10,8 +10,8 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/JanitSri/codecrafters-build-your-own-redis/data"
-	"github.com/JanitSri/codecrafters-build-your-own-redis/parser"
+	"github.com/codecrafters-io/redis-starter-go/app/data"
+	"github.com/codecrafters-io/redis-starter-go/app/parser"
 )
 
 type ServerConfig struct {
