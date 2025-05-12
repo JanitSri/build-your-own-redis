@@ -1,8 +1,10 @@
 package redis
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -41,11 +43,12 @@ func NewRedisServer(sc ServerConfig, rc data.RedisConfig) *RedisServer {
 }
 
 func (rs *RedisServer) Run() {
+
 	ln, err := net.Listen(rs.network, fmt.Sprintf("%s:%s", rs.host, rs.port))
 	if err != nil {
 		log.Fatalln("Failed to bind", ln.Addr().String())
 	}
-	log.Println("Listening on", ln.Addr().String())
+	rs.displayBanner(ln.Addr().String())
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -102,4 +105,27 @@ func (rs *RedisServer) handleConnections(conn net.Conn) {
 
 	wg.Wait()
 	log.Println("Closing connection for", conn.RemoteAddr().String())
+}
+
+func (rs *RedisServer) displayBanner(addr string) {
+	var buf bytes.Buffer
+	buf.WriteString("	        _._\n")
+	buf.WriteString("           _.-``__ ''-._\n")
+	buf.WriteString("      _.-``    `.  `_.  ''-._            Janit's Redis Server Implementation\n")
+	buf.WriteString(fmt.Sprintf("  .-`` .-```.  ```\\/    _.,_ ''-._       Listening On: %s\n", addr))
+	buf.WriteString(" (    '      ,       .-`  | `,    )\n")
+	buf.WriteString(" |`-._`-...-` __...-.``-._|'` _.-'|\n")
+	buf.WriteString(" |    `-._   `._    /     _.-'    |\n")
+	buf.WriteString("  `-._    `-._  `-./  _.-'    _.-'\n")
+	buf.WriteString(" |`-._`-._    `-.__.-'    _.-'_.-'|\n")
+	buf.WriteString(" |    `-._`-._        _.-'_.-'    |\n")
+	buf.WriteString("  `-._    `-._`-.__.-'_.-'    _.-'\n")
+	buf.WriteString(" |`-._`-._    `-.__.-'    _.-'_.-'|\n")
+	buf.WriteString(" |    `-._`-._        _.-'_.-'    |\n")
+	buf.WriteString("  `-._    `-._`-.__.-'_.-'    _.-'\n")
+	buf.WriteString("      `-._    `-.__.-'    _.-'\n")
+	buf.WriteString("          `-._        _.-'\n")
+	buf.WriteString("              `-.__.-'      \n")
+
+	io.Copy(os.Stdout, &buf)
 }
