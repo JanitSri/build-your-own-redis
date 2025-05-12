@@ -1,21 +1,32 @@
 package data
 
 import (
+	"errors"
+	"log"
+	"strings"
 	"sync"
 	"time"
 )
 
+var InvalidServerConfig = func(name string) error {
+	return errors.New("invalid Redis config: " + name)
+}
+
 type DataStore interface {
 	Get(key any) (any, bool)
 	Set(key, value any)
+	GetConfig(string) string
 }
 
 type RedisStore struct {
-	cmap sync.Map
+	cmap   sync.Map
+	config RedisConfig
 }
 
-func NewRedisStore() *RedisStore {
-	return &RedisStore{}
+func NewRedisStore(rc RedisConfig) *RedisStore {
+	return &RedisStore{
+		config: rc,
+	}
 }
 
 func (rs *RedisStore) Get(key any) (any, bool) {
@@ -48,4 +59,30 @@ func (rv *RedisValue) SetExpiry(t time.Time) {
 
 func (rv RedisValue) Value() string {
 	return rv.value
+}
+
+type RedisConfig struct {
+	dir        string
+	dbFileName string
+}
+
+func NewRedisConfig(dir, dbFileName string) *RedisConfig {
+	return &RedisConfig{
+		dir,
+		dbFileName,
+	}
+}
+
+func (rs *RedisStore) GetConfig(name string) string {
+	var c string
+	switch strings.ToUpper(name) {
+	case "DIR":
+		c = rs.config.dir
+	case "DBFILENAME":
+		c = rs.config.dbFileName
+	default:
+		log.Fatal(InvalidServerConfig(name))
+	}
+
+	return c
 }

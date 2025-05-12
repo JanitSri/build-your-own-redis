@@ -159,3 +159,38 @@ func (gc *GetCommand) Execute(ds data.DataStore) []byte {
 
 	return writeBulkString(res.Value())
 }
+
+type ConfigCommand struct {
+	BaseCommand
+}
+
+func NewConfigCommand(args []string, flags []*Flag) *ConfigCommand {
+	return &ConfigCommand{
+		BaseCommand{
+			args,
+			flags,
+		},
+	}
+}
+
+func (cc *ConfigCommand) Execute(ds data.DataStore) []byte {
+	log.Println("configuring...")
+
+	var res bytes.Buffer
+	for _, f := range cc.flags {
+		switch strings.ToUpper(f.name) {
+		case GET:
+			// todo: update to handle multiple CONFIG GET params
+			// https://redis.io/docs/latest/commands/config-get/
+			cn := f.value
+			cv := ds.GetConfig(cn)
+			res.WriteString(ARRAY + strconv.Itoa(2) + REDIS_TERMINATOR)
+			res.Write(writeBulkString(cn))
+			res.Write(writeBulkString(cv))
+		default:
+			log.Fatalln(InvalidSetCommandFlag(f.name))
+		}
+	}
+
+	return res.Bytes()
+}

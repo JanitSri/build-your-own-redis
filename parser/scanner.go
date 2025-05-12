@@ -99,6 +99,8 @@ func (rs *RedisScanner) handleCommand(cmdString string, np int) Command {
 		cmd = rs.parseSetCmd(np)
 	case GET:
 		cmd = rs.parseGetCmd()
+	case CONFIG:
+		cmd = rs.parseConfigCmd(np)
 	default:
 		log.Fatalln(InvalidRedisCommandError)
 	}
@@ -163,4 +165,27 @@ func (rs *RedisScanner) parseGetCmd() *GetCommand {
 	flags := []*Flag{}
 
 	return NewGetCommand(args, flags)
+}
+
+func (rs *RedisScanner) parseConfigCmd(np int) *ConfigCommand {
+	args := []string{}
+	flags := []*Flag{}
+
+	for i := np; i > 0; i-- {
+		rs.skipLen()
+		f := rs.scanner.Text()
+		i -= 1
+		switch strings.ToUpper(f) {
+		case GET:
+			for i > 0 {
+				rs.skipLen()
+				flags = append(flags, NewFlag(f, rs.scanner.Text()))
+				i -= 1
+			}
+		default:
+			log.Fatalln(InvalidSetCommandFlag(f))
+		}
+	}
+
+	return NewConfigCommand(args, flags)
 }

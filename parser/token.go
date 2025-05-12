@@ -26,10 +26,11 @@ const (
 	PUSH            = ">"
 
 	// Redis Commands
-	PING = "PING"
-	ECHO = "ECHO"
-	GET  = "GET"
-	SET  = "SET"
+	PING   = "PING"
+	ECHO   = "ECHO"
+	GET    = "GET"
+	SET    = "SET"
+	CONFIG = "CONFIG"
 
 	// SET COMMAND FLAGS
 	PX = "PX"

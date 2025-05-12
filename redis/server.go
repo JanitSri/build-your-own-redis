@@ -33,10 +33,10 @@ type RedisServer struct {
 	ds data.DataStore
 }
 
-func NewRedisServer(config ServerConfig) *RedisServer {
+func NewRedisServer(sc ServerConfig, rc data.RedisConfig) *RedisServer {
 	return &RedisServer{
-		ServerConfig: config,
-		ds:           data.NewRedisStore(),
+		ServerConfig: sc,
+		ds:           data.NewRedisStore(rc),
 	}
 }
 
