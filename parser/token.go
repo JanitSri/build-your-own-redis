@@ -7,6 +7,9 @@ var InvalidRedisCommandError = errors.New("invalid redis command")
 var InvalidSetCommandFlag = func(flag string) error {
 	return errors.New("invalid flag for set command: " + flag)
 }
+var KeysCommandError = func(flag string) error {
+	return errors.New("keys command error: " + flag)
+}
 
 const (
 	// RESP Data Types
@@ -31,6 +34,7 @@ const (
 	GET    = "GET"
 	SET    = "SET"
 	CONFIG = "CONFIG"
+	KEYS   = "KEYS"
 
 	// SET COMMAND FLAGS
 	PX = "PX"

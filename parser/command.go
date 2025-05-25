@@ -14,16 +14,17 @@ import (
 var ErrInvalidNumberOfArguments = errors.New("invalid number of arguments")
 var ErrInvalidArgument = errors.New("invalid argument")
 var ErrInvalidCharacterError = errors.New("invalid error type")
+var ErrInvalidRDBValTypeError = errors.New("invalid value type in RDB file")
 
 func writeBulkString(s string) []byte {
 	l := strconv.Itoa(len(s))
-	var b bytes.Buffer
-	b.WriteString(BULK_STRING)
-	b.WriteString(l)
-	b.WriteString(REDIS_TERMINATOR)
-	b.WriteString(s)
-	b.WriteString(REDIS_TERMINATOR)
-	return b.Bytes()
+	var buf bytes.Buffer
+	buf.WriteString(BULK_STRING)
+	buf.WriteString(l)
+	buf.WriteString(REDIS_TERMINATOR)
+	buf.WriteString(s)
+	buf.WriteString(REDIS_TERMINATOR)
+	return buf.Bytes()
 }
 
 type Flag struct {
@@ -57,9 +58,9 @@ func NewPingCommand() *PingCommand {
 func (pc *PingCommand) Execute(ds data.DataStore) []byte {
 	log.Println("ponging...")
 
-	var b bytes.Buffer
-	b.WriteString(PONG)
-	return b.Bytes()
+	var buf bytes.Buffer
+	buf.WriteString(PONG)
+	return buf.Bytes()
 }
 
 type EchoCommand struct {
@@ -118,10 +119,10 @@ func (sc *SetCommand) Execute(ds data.DataStore) []byte {
 
 	ds.Set(sc.args[0], v)
 
-	var b bytes.Buffer
-	b.WriteString(OK)
+	var buf bytes.Buffer
+	buf.WriteString(OK)
 
-	return b.Bytes()
+	return buf.Bytes()
 }
 
 type GetCommand struct {
@@ -145,19 +146,20 @@ func (gc *GetCommand) Execute(ds data.DataStore) []byte {
 	}
 
 	v, ok := ds.Get(gc.args[0])
-	var b bytes.Buffer
+	var buf bytes.Buffer
 	if !ok {
-		b.WriteString(NULL_BULK_STRING)
-		return b.Bytes()
+		buf.WriteString(NULL_BULK_STRING)
+		return buf.Bytes()
 	}
 
 	res := v.(*data.RedisValue)
 	if res.IsExpired() {
-		b.WriteString(NULL_BULK_STRING)
-		return b.Bytes()
+		buf.WriteString(NULL_BULK_STRING)
+		return buf.Bytes()
 	}
 
-	return writeBulkString(res.Value())
+	vs := res.Value().(string)
+	return writeBulkString(vs)
 }
 
 type ConfigCommand struct {
@@ -176,7 +178,7 @@ func NewConfigCommand(args []string, flags []*Flag) *ConfigCommand {
 func (cc *ConfigCommand) Execute(ds data.DataStore) []byte {
 	log.Println("configuring...")
 
-	var res bytes.Buffer
+	var buf bytes.Buffer
 	for _, f := range cc.flags {
 		switch strings.ToUpper(f.name) {
 		case GET:
@@ -184,13 +186,55 @@ func (cc *ConfigCommand) Execute(ds data.DataStore) []byte {
 			// https://redis.io/docs/latest/commands/config-get/
 			cn := f.value
 			cv := ds.GetConfig(cn)
-			res.WriteString(ARRAY + strconv.Itoa(2) + REDIS_TERMINATOR)
-			res.Write(writeBulkString(cn))
-			res.Write(writeBulkString(cv))
+			buf.WriteString(ARRAY + strconv.Itoa(2) + REDIS_TERMINATOR)
+			buf.Write(writeBulkString(cn))
+			buf.Write(writeBulkString(cv))
 		default:
 			log.Fatalln(InvalidSetCommandFlag(f.name))
 		}
 	}
 
-	return res.Bytes()
+	return buf.Bytes()
+}
+
+type KeysCommand struct {
+	BaseCommand
+}
+
+func NewKeysCommand(args []string, flags []*Flag) *KeysCommand {
+	return &KeysCommand{
+		BaseCommand{
+			args,
+			flags,
+		},
+	}
+}
+
+func (kc *KeysCommand) Execute(ds data.DataStore) []byte {
+	log.Println("Getting Keys...")
+
+	var buf bytes.Buffer
+
+	if len(kc.args) == 0 {
+		log.Fatalln(ErrInvalidArgument)
+	}
+
+	p := kc.args[0]
+	var tempBuf bytes.Buffer
+	l := 0
+	ks := ds.Keys()
+	for _, k := range ks {
+		ks := k.(string)
+		if p == "*" {
+			tempBuf.Write(writeBulkString(ks))
+			l++
+		}
+	}
+
+	buf.WriteString(ARRAY)
+	buf.WriteString(strconv.Itoa(l))
+	buf.WriteString(REDIS_TERMINATOR)
+	tempBuf.WriteTo(&buf)
+
+	return buf.Bytes()
 }

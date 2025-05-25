@@ -9,6 +9,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -48,7 +50,7 @@ func (rs *RedisServer) Run() {
 	if err != nil {
 		log.Fatalln("Failed to bind", ln.Addr().String())
 	}
-	rs.displayBanner(ln.Addr().String())
+	rs.startupTasks()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -107,7 +109,14 @@ func (rs *RedisServer) handleConnections(conn net.Conn) {
 	log.Println("Closing connection for", conn.RemoteAddr().String())
 }
 
-func (rs *RedisServer) displayBanner(addr string) {
+func (rs *RedisServer) startupTasks() {
+	rs.displayBanner()
+	rs.loadRDBFile()
+}
+
+func (rs *RedisServer) displayBanner() {
+	addr := fmt.Sprintf("%s://%s:%s", rs.ServerConfig.network, rs.ServerConfig.host, rs.ServerConfig.port)
+
 	var buf bytes.Buffer
 	buf.WriteString("	        _._\n")
 	buf.WriteString("           _.-``__ ''-._\n")
@@ -125,7 +134,31 @@ func (rs *RedisServer) displayBanner(addr string) {
 	buf.WriteString("  `-._    `-._`-.__.-'_.-'    _.-'\n")
 	buf.WriteString("      `-._    `-.__.-'    _.-'\n")
 	buf.WriteString("          `-._        _.-'\n")
-	buf.WriteString("              `-.__.-'      \n")
+	buf.WriteString("              `-.__.-'      \n\n")
 
 	io.Copy(os.Stdout, &buf)
+}
+
+func (rs *RedisServer) loadRDBFile() {
+	log.Println("Loading RDB file...")
+
+	dir := rs.ds.GetConfig("dir")
+	fn := rs.ds.GetConfig("dbfilename")
+	p := path.Join(strings.TrimSpace(dir), strings.TrimSpace(fn))
+
+	if p == "" {
+		return
+	}
+
+	rb, err := os.ReadFile(p)
+	if err != nil {
+		return
+	}
+
+	pairs := make(map[string]*data.RedisValue)
+	parser.ParseRBDFile(rb, pairs)
+
+	for k, v := range pairs {
+		rs.ds.Set(k, v)
+	}
 }
