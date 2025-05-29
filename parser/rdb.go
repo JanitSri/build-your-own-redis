@@ -11,7 +11,9 @@ import (
 )
 
 // https://rdb.fnordig.de/file_format.html
-func ParseRBDFile(b []byte, pairs map[string]*data.RedisValue) {
+func ParseRBDFile(b []byte) map[string]*data.RedisValue {
+	pairs := make(map[string]*data.RedisValue)
+
 	// skip the header section -- will always be 'REDIS0011'
 	i := 9
 
@@ -68,6 +70,8 @@ func ParseRBDFile(b []byte, pairs map[string]*data.RedisValue) {
 			}
 		}
 	}
+
+	return pairs
 }
 
 func parseType(i int, b []byte, pairs map[string]*data.RedisValue, exp time.Time) int {

@@ -34,13 +34,15 @@ func NewServerConfig(network, host, port string) *ServerConfig {
 
 type RedisServer struct {
 	ServerConfig
-	ds data.DataStore
+	redisContext *data.RedisContext
 }
 
-func NewRedisServer(sc ServerConfig, rc data.RedisConfig) *RedisServer {
+func NewRedisServer(sc ServerConfig, rc data.RedisConfig, ri *data.RedisInfo) *RedisServer {
+	rs := data.NewRedisStore(rc)
+
 	return &RedisServer{
 		ServerConfig: sc,
-		ds:           data.NewRedisStore(rc),
+		redisContext: data.NewRedisContext(ri, rs),
 	}
 }
 
@@ -100,7 +102,7 @@ func (rs *RedisServer) handleConnections(conn net.Conn) {
 	go func() {
 		defer wg.Done()
 		for cmd := range c {
-			b := cmd.Execute(rs.ds)
+			b := cmd.Execute(rs.redisContext)
 			conn.Write(b)
 		}
 	}()
@@ -142,8 +144,8 @@ func (rs *RedisServer) displayBanner() {
 func (rs *RedisServer) loadRDBFile() {
 	log.Println("Loading RDB file...")
 
-	dir := rs.ds.GetConfig("dir")
-	fn := rs.ds.GetConfig("dbfilename")
+	dir := rs.redisContext.DataStore.GetConfig("dir")
+	fn := rs.redisContext.DataStore.GetConfig("dbfilename")
 	p := path.Join(strings.TrimSpace(dir), strings.TrimSpace(fn))
 
 	if p == "" {
@@ -155,10 +157,9 @@ func (rs *RedisServer) loadRDBFile() {
 		return
 	}
 
-	pairs := make(map[string]*data.RedisValue)
-	parser.ParseRBDFile(rb, pairs)
+	pairs := parser.ParseRBDFile(rb)
 
 	for k, v := range pairs {
-		rs.ds.Set(k, v)
+		rs.redisContext.DataStore.Set(k, v)
 	}
 }

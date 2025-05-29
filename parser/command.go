@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/JanitSri/codecrafters-build-your-own-redis/data"
+	"github.com/JanitSri/codecrafters-build-your-own-redis/util"
 )
 
 var ErrInvalidNumberOfArguments = errors.New("invalid number of arguments")
@@ -40,7 +41,7 @@ func NewFlag(name, value string) *Flag {
 }
 
 type Command interface {
-	Execute(data.DataStore) []byte
+	Execute(*data.RedisContext) []byte
 }
 
 type BaseCommand struct {
@@ -55,7 +56,7 @@ func NewPingCommand() *PingCommand {
 	return &PingCommand{}
 }
 
-func (pc *PingCommand) Execute(ds data.DataStore) []byte {
+func (pc *PingCommand) Execute(rc *data.RedisContext) []byte {
 	log.Println("ponging...")
 
 	var buf bytes.Buffer
@@ -76,7 +77,7 @@ func NewEchoCommand(args []string) *EchoCommand {
 	}
 }
 
-func (ec *EchoCommand) Execute(ds data.DataStore) []byte {
+func (ec *EchoCommand) Execute(rc *data.RedisContext) []byte {
 	log.Println("echoing...")
 
 	if len(ec.args) != 1 {
@@ -99,7 +100,7 @@ func NewSetCommand(args []string, flags []*Flag) *SetCommand {
 	}
 }
 
-func (sc *SetCommand) Execute(ds data.DataStore) []byte {
+func (sc *SetCommand) Execute(rc *data.RedisContext) []byte {
 	log.Println("setting...")
 
 	if len(sc.args) != 2 {
@@ -117,7 +118,7 @@ func (sc *SetCommand) Execute(ds data.DataStore) []byte {
 		}
 	}
 
-	ds.Set(sc.args[0], v)
+	rc.DataStore.Set(sc.args[0], v)
 
 	var buf bytes.Buffer
 	buf.WriteString(OK)
@@ -138,14 +139,14 @@ func NewGetCommand(args []string, flags []*Flag) *GetCommand {
 	}
 }
 
-func (gc *GetCommand) Execute(ds data.DataStore) []byte {
+func (gc *GetCommand) Execute(rc *data.RedisContext) []byte {
 	log.Println("getting...")
 
 	if len(gc.args) != 1 {
 		log.Fatal(ErrInvalidNumberOfArguments)
 	}
 
-	v, ok := ds.Get(gc.args[0])
+	v, ok := rc.DataStore.Get(gc.args[0])
 	var buf bytes.Buffer
 	if !ok {
 		buf.WriteString(NULL_BULK_STRING)
@@ -175,7 +176,7 @@ func NewConfigCommand(args []string, flags []*Flag) *ConfigCommand {
 	}
 }
 
-func (cc *ConfigCommand) Execute(ds data.DataStore) []byte {
+func (cc *ConfigCommand) Execute(rc *data.RedisContext) []byte {
 	log.Println("configuring...")
 
 	var buf bytes.Buffer
@@ -185,7 +186,7 @@ func (cc *ConfigCommand) Execute(ds data.DataStore) []byte {
 			// todo: update to handle multiple CONFIG GET params
 			// https://redis.io/docs/latest/commands/config-get/
 			cn := f.value
-			cv := ds.GetConfig(cn)
+			cv := rc.DataStore.GetConfig(cn)
 			buf.WriteString(ARRAY + strconv.Itoa(2) + REDIS_TERMINATOR)
 			buf.Write(writeBulkString(cn))
 			buf.Write(writeBulkString(cv))
@@ -210,7 +211,7 @@ func NewKeysCommand(args []string, flags []*Flag) *KeysCommand {
 	}
 }
 
-func (kc *KeysCommand) Execute(ds data.DataStore) []byte {
+func (kc *KeysCommand) Execute(rc *data.RedisContext) []byte {
 	log.Println("Getting Keys...")
 
 	var buf bytes.Buffer
@@ -222,7 +223,7 @@ func (kc *KeysCommand) Execute(ds data.DataStore) []byte {
 	p := kc.args[0]
 	var tempBuf bytes.Buffer
 	l := 0
-	ks := ds.Keys()
+	ks := rc.DataStore.Keys()
 	for _, k := range ks {
 		ks := k.(string)
 		if p == "*" {
@@ -235,6 +236,40 @@ func (kc *KeysCommand) Execute(ds data.DataStore) []byte {
 	buf.WriteString(strconv.Itoa(l))
 	buf.WriteString(REDIS_TERMINATOR)
 	tempBuf.WriteTo(&buf)
+
+	return buf.Bytes()
+}
+
+type InfoCommand struct {
+	BaseCommand
+}
+
+func NewInfoCommand(args []string, flags []*Flag) *InfoCommand {
+	return &InfoCommand{
+		BaseCommand{
+			args,
+			flags,
+		},
+	}
+}
+
+func (ic *InfoCommand) Execute(rc *data.RedisContext) []byte {
+	log.Println("info...")
+
+	var arg string
+	if len(ic.args) >= 1 {
+		arg = ic.args[0]
+	}
+
+	var buf bytes.Buffer
+	switch strings.ToUpper(arg) {
+	case REPLICATION:
+		s := util.FormatWithTags(*rc.RedisInfo.Replication, "role")
+		sb := writeBulkString(s)
+		buf.Write(sb)
+	default:
+		log.Fatalln(ErrInvalidArgument)
+	}
 
 	return buf.Bytes()
 }

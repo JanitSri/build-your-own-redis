@@ -103,6 +103,8 @@ func (rs *RedisScanner) handleCommand(cmdString string, np int) Command {
 		cmd = rs.parseConfigCmd(np)
 	case KEYS:
 		cmd = rs.parseKeysCmd()
+	case INFO:
+		cmd = rs.parseInfoCmd(np)
 	default:
 		log.Fatalln(InvalidRedisCommandError)
 	}
@@ -200,4 +202,18 @@ func (rs *RedisScanner) parseKeysCmd() *KeysCommand {
 	flags := []*Flag{}
 
 	return NewKeysCommand(args, flags)
+}
+
+func (rs *RedisScanner) parseInfoCmd(np int) Command {
+	args := []string{}
+	flags := []*Flag{}
+
+	if np == 1 {
+		rs.skipLen()
+		a := rs.scanner.Text()
+		np -= 1
+		args = append(args, a)
+	}
+
+	return NewInfoCommand(args, flags)
 }
