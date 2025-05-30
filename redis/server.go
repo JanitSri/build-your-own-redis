@@ -2,20 +2,20 @@ package redis
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
-	"os/signal"
 	"path"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/JanitSri/codecrafters-build-your-own-redis/data"
 	"github.com/JanitSri/codecrafters-build-your-own-redis/parser"
+	"github.com/google/uuid"
 )
 
 type ServerConfig struct {
@@ -33,30 +33,29 @@ func NewServerConfig(network, host, port string) *ServerConfig {
 }
 
 type RedisServer struct {
+	id string
 	ServerConfig
-	redisContext *data.RedisContext
+	RedisContext *data.RedisContext
 }
 
 func NewRedisServer(sc ServerConfig, rc data.RedisConfig, ri *data.RedisInfo) *RedisServer {
 	rs := data.NewRedisStore(rc)
+	id := fmt.Sprintf("%s-%s", ri.Replication.Role, uuid.New().String())
 
 	return &RedisServer{
 		ServerConfig: sc,
-		redisContext: data.NewRedisContext(ri, rs),
+		RedisContext: data.NewRedisContext(ri, rs),
+		id:           id,
 	}
 }
 
-func (rs *RedisServer) Run() {
-
+func (rs *RedisServer) Run(ctx context.Context) {
 	ln, err := net.Listen(rs.network, fmt.Sprintf("%s:%s", rs.host, rs.port))
 	if err != nil {
-		log.Fatalln("Failed to bind", ln.Addr().String())
+		log.Fatalf("%s failed to bind %s\n", rs.id, ln.Addr().String())
 	}
-	rs.startupTasks()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	doneChan := make(chan interface{})
+	doneChan := make(chan any)
 
 	go func(ln net.Listener) {
 		defer close(doneChan)
@@ -65,10 +64,10 @@ func (rs *RedisServer) Run() {
 			conn, err := ln.Accept()
 			if err != nil {
 				if errors.Is(err, net.ErrClosed) {
-					log.Println("server shutting down...")
+					log.Printf("%s server shutting down...\n", rs.id)
 					return
 				} else {
-					log.Println("error accepting connection from", conn.RemoteAddr().String())
+					log.Printf("%s error accepting connection from %s\n", rs.id, conn.RemoteAddr().String())
 					continue
 				}
 			}
@@ -77,8 +76,8 @@ func (rs *RedisServer) Run() {
 		}
 	}(ln)
 
-	sig := <-sigChan
-	log.Println("Shutting down with", sig)
+	<-ctx.Done()
+	log.Printf("%s server received shutdown signal\n", rs.id)
 
 	ln.Close()
 
@@ -87,7 +86,7 @@ func (rs *RedisServer) Run() {
 
 func (rs *RedisServer) handleConnections(conn net.Conn) {
 	defer conn.Close()
-	log.Println("handling connection from", conn.RemoteAddr().String())
+	log.Printf("%s handling connection from %s\n", rs.id, conn.RemoteAddr().String())
 	c := make(chan parser.Command, 10)
 	sc := parser.NewRedisScanner(conn, c)
 
@@ -102,16 +101,16 @@ func (rs *RedisServer) handleConnections(conn net.Conn) {
 	go func() {
 		defer wg.Done()
 		for cmd := range c {
-			b := cmd.Execute(rs.redisContext)
+			b := cmd.Execute(rs.RedisContext)
 			conn.Write(b)
 		}
 	}()
 
 	wg.Wait()
-	log.Println("Closing connection for", conn.RemoteAddr().String())
+	log.Printf("%s closing connection for %s\n", rs.id, conn.RemoteAddr().String())
 }
 
-func (rs *RedisServer) startupTasks() {
+func (rs *RedisServer) StartupTasks() {
 	rs.displayBanner()
 	rs.loadRDBFile()
 }
@@ -144,8 +143,8 @@ func (rs *RedisServer) displayBanner() {
 func (rs *RedisServer) loadRDBFile() {
 	log.Println("Loading RDB file...")
 
-	dir := rs.redisContext.DataStore.GetConfig("dir")
-	fn := rs.redisContext.DataStore.GetConfig("dbfilename")
+	dir := rs.RedisContext.DataStore.GetConfig("dir")
+	fn := rs.RedisContext.DataStore.GetConfig("dbfilename")
 	p := path.Join(strings.TrimSpace(dir), strings.TrimSpace(fn))
 
 	if p == "" {
@@ -160,6 +159,6 @@ func (rs *RedisServer) loadRDBFile() {
 	pairs := parser.ParseRBDFile(rb)
 
 	for k, v := range pairs {
-		rs.redisContext.DataStore.Set(k, v)
+		rs.RedisContext.DataStore.Set(k, v)
 	}
 }
