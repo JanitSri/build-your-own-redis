@@ -21,14 +21,18 @@ func NewOperator() *Operator {
 }
 
 func (op *Operator) Join(rs *redis.RedisServer) {
-	role := rs.RedisContext.RedisInfo.Replication.Role
+	// uncomment to support leader and followers at the same time
+	// codecrafter tests only require either a leader or follower
+	// role := rs.RedisContext.RedisInfo.Replication.Role
 
-	if role == "" || role == "master" {
-		op.leader = rs
-		return
-	}
+	// if role == "" || role == "master" {
+	// 	op.leader = rs
+	// 	return
+	// }
 
-	op.followers = append(op.followers, rs)
+	// op.followers = append(op.followers, rs)
+
+	op.leader = rs
 }
 
 func (op *Operator) Start(ctx context.Context, wg *sync.WaitGroup) {

@@ -264,7 +264,7 @@ func (ic *InfoCommand) Execute(rc *data.RedisContext) []byte {
 	var buf bytes.Buffer
 	switch strings.ToUpper(arg) {
 	case REPLICATION:
-		s := util.FormatWithTags(*rc.RedisInfo.Replication, "role")
+		s := util.SerializeSection(*rc.RedisInfo.Replication)
 		sb := writeBulkString(s)
 		buf.Write(sb)
 	default:

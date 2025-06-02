@@ -22,7 +22,7 @@ func main() {
 	var port string
 	flag.StringVar(&port, "port", "6379", "redis server port number")
 	var replicaOf string
-	flag.StringVar(&replicaOf, "replicaof", "6379", "redis server port number")
+	flag.StringVar(&replicaOf, "replicaof", "", "redis server port number")
 
 	flag.Parse()
 
@@ -40,7 +40,11 @@ func main() {
 	}()
 
 	op := replication.NewOperator()
-	leader := createRedisServer(d, db, port, "master")
+	role := "master"
+	if replicaOf != "" {
+		role = "slave"
+	}
+	leader := createRedisServer(d, db, port, role)
 
 	op.Join(leader)
 
@@ -57,7 +61,9 @@ func createRedisServer(dir, dbFilename, port, role string) *redis.RedisServer {
 	sc := redis.NewServerConfig("tcp", "0.0.0.0", port)
 
 	rr := &data.Replication{
-		Role: role,
+		Role:             role,
+		MasterReplid:     "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
+		MasterReplOffset: 0,
 	}
 	ri := &data.RedisInfo{
 		Replication: rr,
