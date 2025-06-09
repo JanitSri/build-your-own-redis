@@ -1,16 +1,5 @@
 package parser
 
-import "errors"
-
-var InvalidRespDataTypeError = errors.New("invalid redis resp type")
-var InvalidRedisCommandError = errors.New("invalid redis command")
-var InvalidSetCommandFlag = func(flag string) error {
-	return errors.New("invalid flag for set command: " + flag)
-}
-var KeysCommandError = func(flag string) error {
-	return errors.New("keys command error: " + flag)
-}
-
 const (
 	// RESP Data Types
 	SIMPLE_STRING   = "+"

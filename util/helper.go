@@ -1,23 +1,19 @@
 package util
 
 import (
-	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/JanitSri/codecrafters-build-your-own-redis/customerror"
 )
 
-var UnsupportedFieldError = func(kind reflect.Kind) error {
-	return errors.New(fmt.Sprintf("unsupported field type: %s", kind.String()))
-}
-
-func SerializeSection(v any) string {
+func SerializeSection(v any) (string, error) {
 	return SerializeFieldName(v, "")
 }
 
-func SerializeFieldName(v any, fieldName string) string {
+func SerializeFieldName(v any, fieldName string) (string, error) {
 	var sb strings.Builder
 
 	val := reflect.ValueOf(v)
@@ -31,20 +27,20 @@ func SerializeFieldName(v any, fieldName string) string {
 		if fieldName != "" && strings.EqualFold(fieldType.Name, fieldName) {
 			str, err := formatFieldValue(field)
 			if err != nil {
-				log.Fatal(err)
+				return "", err
 			}
 			sb.WriteString(fmt.Sprintf("%s:%s", tag, str))
 			break
 		} else if fieldName == "" {
 			str, err := formatFieldValue(field)
 			if err != nil {
-				log.Fatal(err)
+				return "", err
 			}
 			sb.WriteString(fmt.Sprintf("%s:%s", tag, str))
 		}
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }
 
 func formatFieldValue(field reflect.Value) (string, error) {
@@ -70,6 +66,6 @@ func formatFieldValue(field reflect.Value) (string, error) {
 		elem := field.Elem()
 		return formatFieldValue(elem)
 	default:
-		return "", UnsupportedFieldError(field.Kind())
+		return "", customerror.UnsupportedFieldTypeError{Kind: field.Kind()}
 	}
 }

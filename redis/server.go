@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"path"
 	"strings"
 	"sync"
 
@@ -143,20 +142,27 @@ func (rs *RedisServer) displayBanner() {
 func (rs *RedisServer) loadRDBFile() {
 	log.Println("Loading RDB file...")
 
-	dir := rs.RedisContext.DataStore.GetConfig("dir")
-	fn := rs.RedisContext.DataStore.GetConfig("dbfilename")
-	p := path.Join(strings.TrimSpace(dir), strings.TrimSpace(fn))
+	dir := strings.TrimSpace(rs.RedisContext.DataStore.GetConfig("dir"))
+	fn := strings.TrimSpace(rs.RedisContext.DataStore.GetConfig("dbfilename"))
 
-	if p == "" {
+	fd, err := os.OpenRoot(dir)
+	if err != nil {
 		return
 	}
+	defer fd.Close()
 
-	rb, err := os.ReadFile(p)
+	f, err := fd.Open(fn)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	bd, err := io.ReadAll(f)
 	if err != nil {
 		return
 	}
 
-	pairs := parser.ParseRBDFile(rb)
+	pairs := parser.ParseRBDFile(bd)
 
 	for k, v := range pairs {
 		rs.RedisContext.DataStore.Set(k, v)

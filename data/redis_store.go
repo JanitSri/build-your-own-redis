@@ -1,16 +1,13 @@
 package data
 
 import (
-	"errors"
 	"log"
 	"strings"
 	"sync"
 	"time"
-)
 
-var InvalidServerConfig = func(name string) error {
-	return errors.New("invalid Redis config: " + name)
-}
+	"github.com/JanitSri/codecrafters-build-your-own-redis/customerror"
+)
 
 type DataStore interface {
 	Get(key any) (any, bool)
@@ -92,7 +89,7 @@ func (rs *RedisStore) GetConfig(name string) string {
 	case "DBFILENAME":
 		c = rs.config.dbFileName
 	default:
-		log.Fatal(InvalidServerConfig(name))
+		log.Fatal(customerror.InvalidServerConfigError{Name: name})
 	}
 
 	return c

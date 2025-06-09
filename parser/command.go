@@ -2,20 +2,17 @@ package parser
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
 	"log"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/JanitSri/codecrafters-build-your-own-redis/customerror"
 	"github.com/JanitSri/codecrafters-build-your-own-redis/data"
 	"github.com/JanitSri/codecrafters-build-your-own-redis/util"
 )
-
-var ErrInvalidNumberOfArguments = errors.New("invalid number of arguments")
-var ErrInvalidArgument = errors.New("invalid argument")
-var ErrInvalidCharacterError = errors.New("invalid error type")
-var ErrInvalidRDBValTypeError = errors.New("invalid value type in RDB file")
 
 func writeBulkString(s string) []byte {
 	l := strconv.Itoa(len(s))
@@ -24,6 +21,17 @@ func writeBulkString(s string) []byte {
 	buf.WriteString(l)
 	buf.WriteString(REDIS_TERMINATOR)
 	buf.WriteString(s)
+	buf.WriteString(REDIS_TERMINATOR)
+	return buf.Bytes()
+}
+
+func writeSimpleError(err error) []byte {
+	en := reflect.TypeOf(err).Name()
+	em := fmt.Sprintf("%s %s", en, err.Error())
+
+	var buf bytes.Buffer
+	buf.WriteString(SIMPLE_ERROR)
+	buf.WriteString(em)
 	buf.WriteString(REDIS_TERMINATOR)
 	return buf.Bytes()
 }
@@ -81,7 +89,7 @@ func (ec *EchoCommand) Execute(rc *data.RedisContext) []byte {
 	log.Println("echoing...")
 
 	if len(ec.args) != 1 {
-		log.Fatal(ErrInvalidNumberOfArguments)
+		return writeSimpleError(customerror.InvalidNumberOfArgumentsError{})
 	}
 
 	return writeBulkString(ec.args[0])
@@ -104,7 +112,7 @@ func (sc *SetCommand) Execute(rc *data.RedisContext) []byte {
 	log.Println("setting...")
 
 	if len(sc.args) != 2 {
-		log.Fatal(ErrInvalidNumberOfArguments)
+		return writeSimpleError(customerror.InvalidNumberOfArgumentsError{})
 	}
 
 	v := data.NewRedisValue(sc.args[1], time.Time{})
@@ -114,7 +122,7 @@ func (sc *SetCommand) Execute(rc *data.RedisContext) []byte {
 			ms, _ := strconv.Atoi(f.value)
 			v.SetExpiry(time.Now().Add(time.Duration(ms) * time.Millisecond))
 		default:
-			log.Fatalln(InvalidSetCommandFlag(f.name))
+			return writeSimpleError(customerror.InvalidCommandFlagError{Cmd: SET, Flag: f.name})
 		}
 	}
 
@@ -143,7 +151,7 @@ func (gc *GetCommand) Execute(rc *data.RedisContext) []byte {
 	log.Println("getting...")
 
 	if len(gc.args) != 1 {
-		log.Fatal(ErrInvalidNumberOfArguments)
+		return writeSimpleError(customerror.InvalidNumberOfArgumentsError{})
 	}
 
 	v, ok := rc.DataStore.Get(gc.args[0])
@@ -191,7 +199,7 @@ func (cc *ConfigCommand) Execute(rc *data.RedisContext) []byte {
 			buf.Write(writeBulkString(cn))
 			buf.Write(writeBulkString(cv))
 		default:
-			log.Fatalln(InvalidSetCommandFlag(f.name))
+			return writeSimpleError(customerror.InvalidCommandFlagError{Cmd: CONFIG, Flag: f.name})
 		}
 	}
 
@@ -217,7 +225,7 @@ func (kc *KeysCommand) Execute(rc *data.RedisContext) []byte {
 	var buf bytes.Buffer
 
 	if len(kc.args) == 0 {
-		log.Fatalln(ErrInvalidArgument)
+		return writeSimpleError(customerror.InvalidNumberOfArgumentsError{})
 	}
 
 	p := kc.args[0]
@@ -264,12 +272,29 @@ func (ic *InfoCommand) Execute(rc *data.RedisContext) []byte {
 	var buf bytes.Buffer
 	switch strings.ToUpper(arg) {
 	case REPLICATION:
-		s := util.SerializeSection(*rc.RedisInfo.Replication)
+		s, err := util.SerializeSection(*rc.RedisInfo.Replication)
+		if err != nil {
+			return writeSimpleError(err)
+		}
 		sb := writeBulkString(s)
 		buf.Write(sb)
 	default:
-		log.Fatalln(ErrInvalidArgument)
+		return writeSimpleError(customerror.InvalidNumberOfArgumentsError{})
 	}
 
 	return buf.Bytes()
+}
+
+type ErrorCommand struct {
+	err error
+}
+
+func NewErrorCommand(err error) *ErrorCommand {
+	return &ErrorCommand{
+		err,
+	}
+}
+
+func (ec *ErrorCommand) Execute(_ *data.RedisContext) []byte {
+	return writeSimpleError(ec.err)
 }

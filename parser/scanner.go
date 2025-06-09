@@ -6,6 +6,8 @@ import (
 	"log"
 	"strconv"
 	"strings"
+
+	"github.com/JanitSri/codecrafters-build-your-own-redis/customerror"
 )
 
 type RedisScanner struct {
@@ -49,16 +51,16 @@ func (rs *RedisScanner) parseCmd(s string, np int) Command {
 
 func (rs *RedisScanner) handleArrays(s string) Command {
 	if len(s) < 2 {
-		log.Fatalln(ErrInvalidCharacterError)
+		return NewErrorCommand(customerror.InvalidCharacterError{})
 	}
 
 	n, err := strconv.Atoi(string(s[1:]))
 	if err != nil {
-		log.Fatalln(ErrInvalidCharacterError)
+		return NewErrorCommand(customerror.InvalidCharacterError{})
 	}
 
 	if !rs.scanner.Scan() {
-		log.Fatalln(InvalidRedisCommandError)
+		return NewErrorCommand(customerror.InvalidRedisCommandError{})
 	}
 
 	t := rs.scanner.Text()
@@ -67,12 +69,12 @@ func (rs *RedisScanner) handleArrays(s string) Command {
 
 func (rs *RedisScanner) handleBulkString(s string, np int) Command {
 	if len(s) < 2 {
-		log.Fatalln(ErrInvalidCharacterError)
+		return NewErrorCommand(customerror.InvalidCharacterError{})
 	}
 
 	n, err := strconv.Atoi(string(s[1:]))
 	if err != nil {
-		log.Fatalln(ErrInvalidCharacterError)
+		return NewErrorCommand(customerror.InvalidCharacterError{})
 	}
 	if n == 0 {
 		log.Println("empty string")
@@ -80,7 +82,7 @@ func (rs *RedisScanner) handleBulkString(s string, np int) Command {
 	}
 
 	if !rs.scanner.Scan() {
-		log.Fatalln(InvalidRedisCommandError)
+		return NewErrorCommand(customerror.InvalidRedisCommandError{})
 	}
 
 	t := rs.scanner.Text()
@@ -94,51 +96,70 @@ func (rs *RedisScanner) handleCommand(cmdString string, np int) Command {
 	case PING:
 		cmd = rs.parsePingCmd()
 	case ECHO:
-		cmd = rs.parseEchoCmd()
+		cmd = rs.parseEchoCmd(np)
 	case SET:
 		cmd = rs.parseSetCmd(np)
 	case GET:
-		cmd = rs.parseGetCmd()
+		cmd = rs.parseGetCmd(np)
 	case CONFIG:
 		cmd = rs.parseConfigCmd(np)
 	case KEYS:
-		cmd = rs.parseKeysCmd()
+		cmd = rs.parseKeysCmd(np)
 	case INFO:
 		cmd = rs.parseInfoCmd(np)
 	default:
-		log.Fatalln(InvalidRedisCommandError)
+		return NewErrorCommand(customerror.InvalidRedisCommandError{})
 	}
 
 	return cmd
 }
 
-func (rs *RedisScanner) skipLen() {
+func (rs *RedisScanner) skipLen() error {
 	i := 0
 	for i < 2 && rs.scanner.Scan() {
 		i++
 	}
 	if i != 2 {
-		log.Fatalln(ErrInvalidNumberOfArguments)
+		return customerror.InvalidNumberOfArgumentsError{}
 	}
+
+	return nil
 }
 
-func (rs *RedisScanner) parsePingCmd() *PingCommand {
+func (rs *RedisScanner) parsePingCmd() Command {
 	return NewPingCommand()
 }
 
-func (rs *RedisScanner) parseEchoCmd() *EchoCommand {
-	rs.skipLen()
+func (rs *RedisScanner) parseEchoCmd(np int) Command {
+	if np < 1 {
+		return NewErrorCommand(customerror.InvalidNumberOfArgumentsError{})
+	}
+
+	err := rs.skipLen()
+	if err != nil {
+		return NewErrorCommand(err)
+	}
 	s := rs.scanner.Text()
 
 	return NewEchoCommand([]string{s})
 }
 
-func (rs *RedisScanner) parseSetCmd(np int) *SetCommand {
-	rs.skipLen()
+func (rs *RedisScanner) parseSetCmd(np int) Command {
+	if np < 2 {
+		return NewErrorCommand(customerror.InvalidNumberOfArgumentsError{})
+	}
+
+	err := rs.skipLen()
+	if err != nil {
+		return NewErrorCommand(err)
+	}
 	k := rs.scanner.Text()
 	np -= 1
 
-	rs.skipLen()
+	err = rs.skipLen()
+	if err != nil {
+		return NewErrorCommand(err)
+	}
 	v := rs.scanner.Text()
 	np -= 1
 
@@ -146,23 +167,36 @@ func (rs *RedisScanner) parseSetCmd(np int) *SetCommand {
 	flags := []*Flag{}
 
 	for i := np; i > 0; i-- {
-		rs.skipLen()
+		err := rs.skipLen()
+		if err != nil {
+			return NewErrorCommand(err)
+		}
 		f := rs.scanner.Text()
 		switch strings.ToUpper(f) {
 		case PX:
-			rs.skipLen()
+			err := rs.skipLen()
+			if err != nil {
+				return NewErrorCommand(err)
+			}
 			flags = append(flags, NewFlag(f, rs.scanner.Text()))
 			i -= 1
 		default:
-			log.Fatalln(InvalidSetCommandFlag(f))
+			return NewErrorCommand(customerror.InvalidCommandFlagError{Cmd: SET, Flag: f})
 		}
 	}
 
 	return NewSetCommand(args, flags)
 }
 
-func (rs *RedisScanner) parseGetCmd() *GetCommand {
-	rs.skipLen()
+func (rs *RedisScanner) parseGetCmd(np int) Command {
+	if np < 1 {
+		return NewErrorCommand(customerror.InvalidNumberOfArgumentsError{})
+	}
+
+	err := rs.skipLen()
+	if err != nil {
+		return NewErrorCommand(err)
+	}
 	k := rs.scanner.Text()
 
 	args := []string{k}
@@ -171,31 +205,48 @@ func (rs *RedisScanner) parseGetCmd() *GetCommand {
 	return NewGetCommand(args, flags)
 }
 
-func (rs *RedisScanner) parseConfigCmd(np int) *ConfigCommand {
+func (rs *RedisScanner) parseConfigCmd(np int) Command {
+	if np < 1 {
+		return NewErrorCommand(customerror.InvalidNumberOfArgumentsError{})
+	}
+
 	args := []string{}
 	flags := []*Flag{}
 
 	for i := np; i > 0; i-- {
-		rs.skipLen()
+		err := rs.skipLen()
+		if err != nil {
+			return NewErrorCommand(err)
+		}
 		f := rs.scanner.Text()
 		i -= 1
 		switch strings.ToUpper(f) {
 		case GET:
 			for i > 0 {
-				rs.skipLen()
+				err := rs.skipLen()
+				if err != nil {
+					return NewErrorCommand(err)
+				}
 				flags = append(flags, NewFlag(f, rs.scanner.Text()))
 				i -= 1
 			}
 		default:
-			log.Fatalln(InvalidSetCommandFlag(f))
+			NewErrorCommand(customerror.InvalidCommandFlagError{Cmd: CONFIG, Flag: f})
 		}
 	}
 
 	return NewConfigCommand(args, flags)
 }
 
-func (rs *RedisScanner) parseKeysCmd() *KeysCommand {
-	rs.skipLen()
+func (rs *RedisScanner) parseKeysCmd(np int) Command {
+	if np < 1 {
+		return NewErrorCommand(customerror.InvalidNumberOfArgumentsError{})
+	}
+
+	err := rs.skipLen()
+	if err != nil {
+		return NewErrorCommand(err)
+	}
 	k := rs.scanner.Text()
 
 	args := []string{k}
@@ -205,11 +256,18 @@ func (rs *RedisScanner) parseKeysCmd() *KeysCommand {
 }
 
 func (rs *RedisScanner) parseInfoCmd(np int) Command {
+	if np < 1 {
+		return NewErrorCommand(customerror.InvalidNumberOfArgumentsError{})
+	}
+
 	args := []string{}
 	flags := []*Flag{}
 
 	if np == 1 {
-		rs.skipLen()
+		err := rs.skipLen()
+		if err != nil {
+			return NewErrorCommand(err)
+		}
 		a := rs.scanner.Text()
 		np -= 1
 		args = append(args, a)

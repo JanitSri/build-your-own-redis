@@ -2,14 +2,12 @@ package replication
 
 import (
 	"context"
-	"errors"
 	"log"
 	"sync"
 
+	"github.com/JanitSri/codecrafters-build-your-own-redis/customerror"
 	"github.com/JanitSri/codecrafters-build-your-own-redis/redis"
 )
-
-var noLeaderAvailableException = errors.New("no redis leader available")
 
 type Operator struct {
 	leader    *redis.RedisServer
@@ -37,7 +35,7 @@ func (op *Operator) Join(rs *redis.RedisServer) {
 
 func (op *Operator) Start(ctx context.Context, wg *sync.WaitGroup) {
 	if op.leader == nil {
-		log.Fatalln(noLeaderAvailableException)
+		log.Fatalln(customerror.NoLeaderAvailableError{})
 	}
 
 	wg.Add(1)

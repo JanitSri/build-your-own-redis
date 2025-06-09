@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/JanitSri/codecrafters-build-your-own-redis/customerror"
 	"github.com/JanitSri/codecrafters-build-your-own-redis/data"
 )
 
@@ -90,7 +91,7 @@ func parseType(i int, b []byte, pairs map[string]*data.RedisValue, exp time.Time
 		}
 
 	default:
-		log.Fatal(ErrInvalidRDBValTypeError)
+		log.Fatal(customerror.InvalidRDBValueTypeError{})
 	}
 
 	return i
